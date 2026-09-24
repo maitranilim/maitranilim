@@ -1,16 +1,17 @@
-## Hi there 👋
+# Hi, I'm Nilim
 
-<!--
-**maitranilim/maitranilim** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+I build web apps with UI/UX at the center. I like interfaces that feel responsive to what someone is doing: a useful transition, a good hover state, a page that changes as you explore it. I am learning to use 3D and scroll-driven motion with the same care.
 
-Here are some ideas to get you started:
+## Start with these
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+- [Moodboard AI](https://github.com/maitranilim/moodboard-ai) — search a feeling and get a live image board with a palette made for that mood. I spent the most time on the search behavior, color system, and interaction details.
+- [Aural](https://github.com/maitranilim/aural-audio-engine) — a music discovery experiment that maps a track from genre to subgenre to microgenre. It shows the source and confidence limits instead of hiding them.
+- [Make-or-Break](https://github.com/maitranilim/make-or-break) — a small canvas simulation where you can change the balance between building and breaking.
+
+I also keep [my portfolio](https://github.com/maitranilim/maitranilimfolio) here. [Open the site](https://broad-art-3e62.maitranilim.workers.dev/).
+
+## What I'm focusing on
+
+React and TypeScript for product work; plain HTML, CSS, and JavaScript when a small idea needs to move quickly. I want to get better at motion, 3D, accessibility, and performance by putting them into real interfaces and checking how they feel to use.
+
+I use AI in parts of my process. The READMEs say what each project does, what is still rough, and where my contribution sits.
