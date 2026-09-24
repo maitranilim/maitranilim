@@ -8,8 +8,6 @@ I build web apps with UI/UX at the center. I like interfaces that feel responsiv
 - [Aural](https://github.com/maitranilim/aural-audio-engine) — a music discovery experiment that maps a track from genre to subgenre to microgenre. It shows the source and confidence limits instead of hiding them.
 - [Make-or-Break](https://github.com/maitranilim/make-or-break) — a small canvas simulation where you can change the balance between building and breaking.
 
-I also keep [my portfolio](https://github.com/maitranilim/maitranilimfolio) here. [Open the site](https://broad-art-3e62.maitranilim.workers.dev/).
-
 ## What I'm focusing on
 
 React and TypeScript for product work; plain HTML, CSS, and JavaScript when a small idea needs to move quickly. I want to get better at motion, 3D, accessibility, and performance by putting them into real interfaces and checking how they feel to use.
