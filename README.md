@@ -12,4 +12,4 @@ I build web apps with UI/UX at the center. I like interfaces that feel responsiv
 
 React and TypeScript for product work; plain HTML, CSS, and JavaScript when a small idea needs to move quickly. I want to get better at motion, 3D, accessibility, and performance by putting them into real interfaces and checking how they feel to use.
 
-I use AI in parts of my process. The READMEs say what each project does, what is still rough, and where my contribution sits.
+I use AI tools for parts of my workflow; I build, review, and maintain the projects here.
