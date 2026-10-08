@@ -2,6 +2,8 @@
 
 I build interactive web apps with UI/UX at the center. I care about motion and useful feedback: a hover that helps, a transition that explains, a page that responds as you explore it. I bring those details into 3D and scroll-driven work too.
 
+Portfolio: [nilimmaitra.vercel.app](https://nilimmaitra.vercel.app/)
+
 ## Start with these
 
 - [Brickflux](https://github.com/maitranilim/make-or-break) — a canvas game where a Builder and Breaker compete for the grid. It has seeded challenge links, collision handling, and keyboard-friendly controls.
