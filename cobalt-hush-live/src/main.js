@@ -15,6 +15,7 @@ import { clamp, damp, lerp } from './core/math.js';
 import { createSim, resetSim, tickSim } from './app/loop.js';
 import { attachInput, createPointerTracker, feedAhead, keyEvents, routeGestures } from './app/inputBridge.js';
 import { createPersistence, mergeLoaded, peekSettings } from './app/persistence.js';
+import { createSound } from './audio/sound.js';
 
 const params = new URLSearchParams(location.search);
 const testMode = params.has('test');
@@ -100,6 +101,16 @@ async function live(stage) {
   let lightsChanged = false;
   let pending = []; // brain events raised outside the frame (mode switches)
 
+  const sound = createSound();
+  let soundArmed = false;
+  // A saved "sound on" starts at the first click or key press (browsers block audio before that).
+  function armSound() {
+    if (state.settings.sound === 'on' && !sound.enabled && !soundArmed) {
+      soundArmed = true;
+      sound.armFromGesture();
+    }
+  }
+
   const ui = createUI(uiRoot, {
     state,
     onLights: (v) => setLightsSetting(v),
@@ -118,6 +129,10 @@ async function live(stage) {
       setSettings({ move: m });
     },
     onPace: (p) => setSettings({ pace: p }),
+    onSound: (v) => {
+      setSettings({ sound: v });
+      sound.setEnabled(v === 'on'); // inside the click: allowed to start audio
+    },
   });
 
   function setSettings(patch) {
@@ -167,6 +182,7 @@ async function live(stage) {
     ui.setTrust(state.trust);
     sim.silk = createSilk(state.mats, { seed });
     persist.begin(state);
+    armSound();
   }
 
   window.addEventListener('resize', () => stage.resize());
@@ -184,6 +200,8 @@ async function live(stage) {
   let closeup = false; // test-only camera
   let out = null; // last tick's result
   let rideK = 0;
+  let prevBrainState = null;
+  const planted = {}; // foot id -> planted last frame, for footstep sounds
   const rideAt = { x: 0, z: 0 };
   let time = 0;
   let last = performance.now();
@@ -233,13 +251,23 @@ async function live(stage) {
         if (out.moulted) {
           spider.setShade(state.shadeIndex);
           ui.setMoults(state.moults);
+          sound.chime();
         }
+        if (out.intent.eatFoodId) sound.eat();
+        if (out.intent.state === 'flee' && prevBrainState !== 'flee') sound.startle();
+        prevBrainState = out.intent.state;
       }
       lightsChanged = false;
       time += dt * simSpeed;
     }
 
     const { body } = sim;
+    // Footstep ticks: one per foot that has just landed.
+    for (const [id, f] of Object.entries(sim.gait.feet)) {
+      if (f.planted && planted[id] === false) sound.step(body.speed);
+      planted[id] = f.planted;
+    }
+    sound.setNight(lights.value);
     spider.pose({
       body,
       gait: sim.gait,

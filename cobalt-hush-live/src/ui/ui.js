@@ -22,6 +22,8 @@ const ICONS = {
   calm: svg('<path d="M10 7l5 5-5 5"/>'),
   normal: svg('<path d="M7 7l5 5-5 5M12 7l5 5-5 5"/>'),
   lively: svg('<path d="M4.5 7l5 5-5 5M9.5 7l5 5-5 5M14.5 7l5 5-5 5"/>'),
+  soundOn: svg('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
+  soundOff: svg('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 10l4 4M20 10l-4 4"/>'),
   moult: svg('<path d="M12 3.5 19 8v8l-7 4.5L5 16V8z"/><path d="M12 9.5 15 11.3v3.4l-3 1.8-3-1.8v-3.4z"/>'),
   close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
 };
@@ -46,8 +48,8 @@ export function showNotice(root, text) {
 
 // onFeedKey: Enter or Space on the armed Feed button (a keyboard click) drops food instead of
 // disarming; the UI disarms itself.
-export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMaterial, onMove, onPace } = {}) {
-  const settings = { lights: 'on', material: 'translucent', move: 'lure', pace: 'normal', ...(state?.settings ?? {}) };
+export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMaterial, onMove, onPace, onSound } = {}) {
+  const settings = { lights: 'on', material: 'translucent', move: 'lure', pace: 'normal', sound: 'off', ...(state?.settings ?? {}) };
   let feedArmed = false;
   let night = 0;
   let trust = state?.trust ?? 0;
@@ -66,6 +68,7 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
   const feedBtn = btn('feed', 'Feed', ICONS.feed, 'Feed');
   const matBtn = btn('material', '', '', '');
   const paceBtn = btn('pace', '', '', '');
+  const soundBtn = btn('sound', 'Sound', '<span class="ico-slot"></span>', 'Sound');
   const seg = el('div', { class: 'hush-seg', role: 'group', 'aria-label': 'Move mode' });
   const lureBtn = el('button', { type: 'button', class: 'hush-btn seg-btn', 'data-move': 'lure' }, '<span class="lbl">Lure</span>');
   const steerBtn = el('button', { type: 'button', class: 'hush-btn seg-btn', 'data-move': 'steer' }, '<span class="lbl">Steer</span>');
@@ -76,7 +79,7 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
     `${ICONS.moult}<span class="lbl">Moults</span><span class="badge">0</span>`,
   );
   const badge = moultBtn.querySelector('.badge');
-  bar.append(lightsBtn, feedBtn, matBtn, paceBtn, seg, moultBtn);
+  bar.append(lightsBtn, feedBtn, matBtn, paceBtn, seg, soundBtn, moultBtn);
 
   // Moults panel.
   const panel = el('div', { class: 'hush-panel', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'hush-moults-title', hidden: '' });
@@ -101,6 +104,8 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
     const p = PACES.includes(settings.pace) ? settings.pace : 'normal';
     paceBtn.innerHTML = `${ICONS[p]}<span class="lbl">${PACE_LABEL[p]}</span>`;
     paceBtn.setAttribute('aria-label', `Walking pace: ${PACE_LABEL[p]}. Change pace`);
+    soundBtn.setAttribute('aria-pressed', String(settings.sound === 'on'));
+    soundBtn.querySelector('.ico-slot').innerHTML = settings.sound === 'on' ? ICONS.soundOn : ICONS.soundOff;
     for (const b of [lureBtn, steerBtn]) b.setAttribute('aria-pressed', String(b.dataset.move === settings.move));
   }
   function paintFeed() {
@@ -180,6 +185,11 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
     settings.material = MATERIALS[(MATERIALS.indexOf(settings.material) + 1) % MATERIALS.length];
     paintSettings();
     onMaterial?.(settings.material);
+  });
+  soundBtn.addEventListener('click', () => {
+    settings.sound = settings.sound === 'on' ? 'off' : 'on';
+    paintSettings();
+    onSound?.(settings.sound);
   });
   paceBtn.addEventListener('click', () => {
     settings.pace = PACES[(PACES.indexOf(settings.pace) + 1) % PACES.length];
