@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en" class="booting">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cobalt Hush: Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./src/ui/ui.css">
+<script>
+  // Before anything loads: a visitor who left the lights off gets the night page at once (the
+  // local copy of the save holds the setting). main.js keeps html.night in step afterwards.
+  try {
+    var saved = JSON.parse(localStorage.getItem('cobalt-hush-live:v1'));
+    if (saved && saved.settings && saved.settings.lights === 'off') document.documentElement.classList.add('night');
+  } catch (e) { /* no storage: start in day */ }
+</script>
+<script type="importmap">
+{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}
+</script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #F7F8FB; }
+  html.night, html.night body { background: #05081A; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #ui { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+  /* A gentle vignette draws the eye to the deck; deeper at night. */
+  body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background: radial-gradient(ellipse 75% 70% at 50% 50%, rgba(11,18,53,0) 55%, rgba(11,18,53,0.07) 100%);
+    transition: background 1.5s ease; }
+  html.night body::after { background: radial-gradient(ellipse 75% 70% at 50% 50%, rgba(0,0,0,0) 45%, rgba(0,2,10,0.45) 100%); }
+  /* Hidden until the saved lights are applied (or 1.5 s pass), so nothing flashes. */
+  html.booting #stage, html.booting #ui { visibility: hidden; }
+</style>
+</head>
+<body>
+<canvas id="stage" role="img" aria-label="Cobalt Hush — an interactive cobalt tarantula. Move your pointer near it, feed it, or steer it."></canvas>
+<div id="ui"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
