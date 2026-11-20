@@ -80,3 +80,15 @@ test('math helpers', () => {
   const d = damp(0, 10, 5, 1);
   assert.ok(Math.abs(d - 10 * (1 - Math.exp(-5))) < 1e-9);
 });
+
+test('pace and sound settings default and migrate', () => {
+  const d = defaultState(0);
+  assert.equal(d.settings.pace, 'normal');
+  assert.equal(d.settings.sound, 'off');
+  const m = migrate({ v: 1, settings: { pace: 'lively', sound: 'on' } }, 0);
+  assert.equal(m.settings.pace, 'lively');
+  assert.equal(m.settings.sound, 'on');
+  const bad = migrate({ v: 1, settings: { pace: 'warp', sound: 3 } }, 0);
+  assert.equal(bad.settings.pace, 'normal');
+  assert.equal(bad.settings.sound, 'off');
+});

@@ -156,7 +156,8 @@
 
 @media (max-width: 419px) {
   .hush-btn { padding: 0 10px; }
-  .hush-bar .lights .lbl, .hush-bar .feed .lbl, .hush-bar .material .lbl, .hush-bar .moults .lbl { display: none; }
+  /* Icons only on narrow screens: every direct toolbar button (the Lure/Steer segment keeps its words). */
+  .hush-bar > .hush-btn .lbl { display: none; }
   .hush-bar .moults { gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -18,6 +18,8 @@ export const SHADES = [
 const LIGHTS = ['on', 'off'];
 const MATERIALS = ['solid', 'translucent', 'ghost'];
 const MOVES = ['lure', 'steer'];
+export const PACES = ['calm', 'normal', 'lively'];
+const SOUNDS = ['off', 'on'];
 
 export function defaultState(now) {
   return {
@@ -30,7 +32,7 @@ export function defaultState(now) {
     shadeIndex: 0,
     moults: [],
     mats: {},
-    settings: { lights: 'on', material: 'translucent', move: 'lure' },
+    settings: { lights: 'on', material: 'translucent', move: 'lure', pace: 'normal', sound: 'off' },
   };
 }
 
@@ -79,6 +81,8 @@ export function migrate(raw, now) {
       lights: pick(s.lights, LIGHTS, d.settings.lights),
       material: pick(s.material, MATERIALS, d.settings.material),
       move: pick(s.move, MOVES, d.settings.move),
+      pace: pick(s.pace, PACES, d.settings.pace),
+      sound: pick(s.sound, SOUNDS, d.settings.sound),
     },
   };
 }

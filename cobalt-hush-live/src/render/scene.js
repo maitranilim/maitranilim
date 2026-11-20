@@ -36,6 +36,11 @@ const MAX_COUNTED_FRAME = 0.25; // longer frames count as this long, so a tab sl
 
 // The scene renders into the HDR buffer at 1/EXPOSURE of its display level, so day whites stay
 // under the 0.85 bloom threshold and only real glow blooms; OutputPass scales back up.
+const BEAM_ANGLE = 0.32; // radians: a pool roughly the spider's size plus a margin
+const BEAM_HEIGHT = 9;
+const FOLLOW_LEAN = 0.16; // fraction of the spider's offset the view shifts toward it
+const FOLLOW_ZOOM = 0.97; // a touch closer than the whole-deck fit
+const FOLLOW_EASE = 1.6; // 1/s: slow, so the camera drifts rather than tracks
 const EXPOSURE = 1.25;
 // Neutral tone mapping compresses near-white; this lift puts the deck and backdrop back at white.
 const NEUTRAL_LIFT = 1.3;
@@ -51,17 +56,25 @@ const DAY = {
   ambient: 0,
   bloomStrength: 0.25,
   bloomThreshold: 0.85,
+  skyColor: new THREE.Color('#FFFFFF'),
+  groundColor: new THREE.Color('#B9C2D6'),
+  beam: 0.12, // a whisper of key light by day: more would push the cobalt into tone-mapped white
+  beamColor: new THREE.Color('#FFFFFF'),
 };
 const NIGHT = {
   background: buffered('#080A16'),
-  deck: new THREE.Color('#121630'),
-  deckGlow: buffered('#141832'), // emissive, so the slab reads deep navy, not void (greyed: Neutral tone mapping crushes dark red/green)
-  hemi: 0,
-  sun: 0.08, // a faint cool moon keeps the ceramic forms legible
-  sunColor: new THREE.Color('#7C9BFF'),
+  deck: new THREE.Color('#1C2034'),
+  deckGlow: buffered('#0B0E1E'), // emissive, so the slab reads deep navy, not void (greyed: Neutral tone mapping crushes dark red/green)
+  hemi: 0.14, // a cool night sky, so forms read without flattening the dark
+  sun: 0.16, // the moon: soft blue light and shadows across the whole deck
+  sunColor: new THREE.Color('#8FA8FF'),
   ambient: 0.05,
   bloomStrength: 1.1,
   bloomThreshold: 0.1,
+  skyColor: new THREE.Color('#5D73B8'),
+  groundColor: new THREE.Color('#0B1028'),
+  beam: 3, // the moonbeam: a pool of cool light that follows the spider and shows its whole body
+  beamColor: new THREE.Color('#A9C2FF'),
 };
 
 // The stage starts at `startQuality` (see startTier) and steps down from there on slow frames.
@@ -92,7 +105,12 @@ export function createStage(canvas, { reducedMotion = false, preserveDrawingBuff
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.02;
   const ambient = new THREE.AmbientLight('#8FB0FF', DAY.ambient);
-  scene.add(hemi, sun, sun.target, ambient);
+  // A soft spotlight that tracks the spider: barely there by day, a moonbeam by night.
+  const beam = new THREE.SpotLight(DAY.beamColor, DAY.beam, 0, BEAM_ANGLE, 0.85, 0);
+  beam.position.set(-1.5, BEAM_HEIGHT, 1.2);
+  scene.add(hemi, sun, sun.target, ambient, beam, beam.target);
+  const focus = new THREE.Vector3(); // eased spider position the beam and the camera lean toward
+  const base = new THREE.Vector3(); // the camera's whole-deck position from fitCamera
 
   let quality = TIERS.includes(pinQuality) ? pinQuality : TIERS.includes(startQuality) ? startQuality : 'high';
   const pinned = quality === pinQuality;
@@ -132,6 +150,28 @@ export function createStage(canvas, { reducedMotion = false, preserveDrawingBuff
     const k = TIER_SETTINGS[quality].bloomScale;
     bloom.setSize(Math.round(w * pr * k), Math.round(h * pr * k));
     fitCamera(camera, w / h);
+    base.copy(camera.position);
+    placeCamera();
+  }
+
+  // Gentle follow: the camera keeps the whole deck in view but leans a little toward the spider
+  // and eases in slightly. Off under reduced motion.
+  function placeCamera() {
+    if (reducedMotion) return;
+    camera.position.copy(base).multiplyScalar(FOLLOW_ZOOM);
+    camera.position.x += focus.x * FOLLOW_LEAN;
+    camera.position.z += focus.z * FOLLOW_LEAN;
+    camera.lookAt(focus.x * FOLLOW_LEAN, 0, focus.z * FOLLOW_LEAN);
+    camera.updateMatrixWorld();
+  }
+  function follow(x, z, dt, { snap = false } = {}) {
+    const k = snap ? 1 : 1 - Math.exp(-FOLLOW_EASE * dt);
+    focus.x += (x - focus.x) * k;
+    focus.z += (z - focus.z) * k;
+    beam.position.set(focus.x - 1.5, BEAM_HEIGHT, focus.z + 1.2);
+    beam.target.position.set(focus.x, 0, focus.z);
+    beam.target.updateMatrixWorld();
+    placeCamera();
   }
 
   function setNight(v) {
@@ -144,6 +184,10 @@ export function createStage(canvas, { reducedMotion = false, preserveDrawingBuff
     sun.intensity = lerp(DAY.sun, NIGHT.sun, night);
     sun.color.lerpColors(DAY.sunColor, NIGHT.sunColor, night);
     ambient.intensity = lerp(DAY.ambient, NIGHT.ambient, night);
+    hemi.color.lerpColors(DAY.skyColor, NIGHT.skyColor, night);
+    hemi.groundColor.lerpColors(DAY.groundColor, NIGHT.groundColor, night);
+    beam.intensity = lerp(DAY.beam, NIGHT.beam, night);
+    beam.color.lerpColors(DAY.beamColor, NIGHT.beamColor, night);
     renderer.toneMappingExposure = EXPOSURE * lerp(NEUTRAL_LIFT, 1, night); // the lift is for day whites only
     bloom.strength = lerp(DAY.bloomStrength, NIGHT.bloomStrength, night);
     bloom.threshold = lerp(DAY.bloomThreshold, NIGHT.bloomThreshold, night);
@@ -206,6 +250,7 @@ export function createStage(canvas, { reducedMotion = false, preserveDrawingBuff
     resize,
     render,
     groundPoint,
+    follow,
     get quality() {
       return quality;
     },

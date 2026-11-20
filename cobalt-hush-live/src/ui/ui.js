@@ -4,6 +4,8 @@ import { lerp, clamp } from '../core/math.js';
 
 const MATERIALS = ['solid', 'translucent', 'ghost'];
 const MATERIAL_LABEL = { solid: 'Solid', translucent: 'Translucent', ghost: 'Ghost' };
+const PACES = ['calm', 'normal', 'lively'];
+const PACE_LABEL = { calm: 'Calm', normal: 'Normal', lively: 'Lively' };
 const RING_R = 11;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -16,6 +18,10 @@ const ICONS = {
   solid: svg('<circle cx="12" cy="12" r="8" fill="currentColor" fill-opacity=".85"/>'),
   translucent: svg('<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" fill-opacity=".5" stroke="none"/>'),
   ghost: svg('<circle cx="12" cy="12" r="8" stroke-dasharray="2.2 2.6"/>'),
+  // Pace: one, two or three chevrons.
+  calm: svg('<path d="M10 7l5 5-5 5"/>'),
+  normal: svg('<path d="M7 7l5 5-5 5M12 7l5 5-5 5"/>'),
+  lively: svg('<path d="M4.5 7l5 5-5 5M9.5 7l5 5-5 5M14.5 7l5 5-5 5"/>'),
   moult: svg('<path d="M12 3.5 19 8v8l-7 4.5L5 16V8z"/><path d="M12 9.5 15 11.3v3.4l-3 1.8-3-1.8v-3.4z"/>'),
   close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
 };
@@ -40,8 +46,8 @@ export function showNotice(root, text) {
 
 // onFeedKey: Enter or Space on the armed Feed button (a keyboard click) drops food instead of
 // disarming; the UI disarms itself.
-export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMaterial, onMove } = {}) {
-  const settings = { lights: 'on', material: 'translucent', move: 'lure', ...(state?.settings ?? {}) };
+export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMaterial, onMove, onPace } = {}) {
+  const settings = { lights: 'on', material: 'translucent', move: 'lure', pace: 'normal', ...(state?.settings ?? {}) };
   let feedArmed = false;
   let night = 0;
   let trust = state?.trust ?? 0;
@@ -59,6 +65,7 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
   const lightsBtn = btn('lights', 'Lights', '<span class="ico-slot"></span>', 'Lights');
   const feedBtn = btn('feed', 'Feed', ICONS.feed, 'Feed');
   const matBtn = btn('material', '', '', '');
+  const paceBtn = btn('pace', '', '', '');
   const seg = el('div', { class: 'hush-seg', role: 'group', 'aria-label': 'Move mode' });
   const lureBtn = el('button', { type: 'button', class: 'hush-btn seg-btn', 'data-move': 'lure' }, '<span class="lbl">Lure</span>');
   const steerBtn = el('button', { type: 'button', class: 'hush-btn seg-btn', 'data-move': 'steer' }, '<span class="lbl">Steer</span>');
@@ -69,7 +76,7 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
     `${ICONS.moult}<span class="lbl">Moults</span><span class="badge">0</span>`,
   );
   const badge = moultBtn.querySelector('.badge');
-  bar.append(lightsBtn, feedBtn, matBtn, seg, moultBtn);
+  bar.append(lightsBtn, feedBtn, matBtn, paceBtn, seg, moultBtn);
 
   // Moults panel.
   const panel = el('div', { class: 'hush-panel', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'hush-moults-title', hidden: '' });
@@ -91,6 +98,9 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
     const m = MATERIALS.includes(settings.material) ? settings.material : 'translucent';
     matBtn.innerHTML = `${ICONS[m]}<span class="lbl">${MATERIAL_LABEL[m]}</span>`;
     matBtn.setAttribute('aria-label', `Material: ${MATERIAL_LABEL[m]}. Change material`);
+    const p = PACES.includes(settings.pace) ? settings.pace : 'normal';
+    paceBtn.innerHTML = `${ICONS[p]}<span class="lbl">${PACE_LABEL[p]}</span>`;
+    paceBtn.setAttribute('aria-label', `Walking pace: ${PACE_LABEL[p]}. Change pace`);
     for (const b of [lureBtn, steerBtn]) b.setAttribute('aria-pressed', String(b.dataset.move === settings.move));
   }
   function paintFeed() {
@@ -170,6 +180,11 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
     settings.material = MATERIALS[(MATERIALS.indexOf(settings.material) + 1) % MATERIALS.length];
     paintSettings();
     onMaterial?.(settings.material);
+  });
+  paceBtn.addEventListener('click', () => {
+    settings.pace = PACES[(PACES.indexOf(settings.pace) + 1) % PACES.length];
+    paintSettings();
+    onPace?.(settings.pace);
   });
   for (const b of [lureBtn, steerBtn]) {
     b.addEventListener('click', () => {

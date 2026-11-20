@@ -117,6 +117,7 @@ async function live(stage) {
       if (m === 'steer') pending.push({ type: 'lure', held: false }); // a lure never outlives Lure mode
       setSettings({ move: m });
     },
+    onPace: (p) => setSettings({ pace: p }),
   });
 
   function setSettings(patch) {
@@ -255,6 +256,7 @@ async function live(stage) {
 
     mist.update(body, lights.value, dt);
     fx.update({ silk: sim.silk, food: sim.food, shells: deckShells(state), lure: sim.brain.lure, night: lights.value, dt });
+    stage.follow(body.x, body.z, dt);
     if (closeup) frameCloseup();
     stage.render(wallDt);
     ui.setTrust(state.trust);
@@ -301,6 +303,7 @@ async function live(stage) {
     persist.loaded.then((loaded) => adopt(mergeLoaded(state, base, loaded), { fade: true }));
   }
   mist.update(sim.body, lights.value, 0);
+  stage.follow(sim.body.x, sim.body.z, 0, { snap: true });
   stage.render(0); // the first visible frame, in the saved lights and material
   const revealNight = lights.value; // test-only readout
   document.documentElement.classList.remove('booting');

@@ -117,12 +117,13 @@ test('a late load keeps saved progress and adds what happened this session', () 
 
 test('peekSettings reads the saved settings synchronously, for the very first frame', () => {
   const saved = { ...defaultState(0), settings: { lights: 'off', material: 'ghost', move: 'steer' } };
-  assert.deepEqual(peekSettings(fakeLocal({ [KEY]: JSON.stringify(saved) })), saved.settings);
+  // Settings saved before pace and sound existed come back with those at their defaults.
+  assert.deepEqual(peekSettings(fakeLocal({ [KEY]: JSON.stringify(saved) })), { ...saved.settings, pace: 'normal', sound: 'off' });
   assert.equal(peekSettings(fakeLocal()), null);
   assert.equal(peekSettings(null), null);
   assert.equal(peekSettings({ getItem() { throw new Error('blocked'); } }), null);
   assert.equal(peekSettings(fakeLocal({ [KEY]: '{bad' })), null);
   // Repaired like any load: unknown values fall back to the defaults.
   const odd = { ...defaultState(0), settings: { lights: 'dim', material: 'ghost' } };
-  assert.deepEqual(peekSettings(fakeLocal({ [KEY]: JSON.stringify(odd) })), { lights: 'on', material: 'ghost', move: 'lure' });
+  assert.deepEqual(peekSettings(fakeLocal({ [KEY]: JSON.stringify(odd) })), { lights: 'on', material: 'ghost', move: 'lure', pace: 'normal', sound: 'off' });
 });

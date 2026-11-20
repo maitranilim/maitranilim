@@ -14,6 +14,14 @@ export const SWIPE_COOLDOWN = 1.5; // seconds between swipe trust penalties
 const FULL = 3;
 const EAT_PULSE_HZ = 2 / 3; // two gentle pulses over the 3 s meal, ending at rest
 const BODY_OPTS = { accel: 6, turnRate: 5, arriveRadius: 0.25 };
+// The player's pace setting scales how fast it walks. Lively never pushes past the flee speed the
+// gait was tuned for, so a lively flee is no faster than a normal one.
+export const PACE_SPEED = { calm: 0.65, normal: 1, lively: 1.45 };
+const PACE_CAP = 4.5;
+export const paced = (maxSpeed, pace) => {
+  const k = PACE_SPEED[pace] ?? 1;
+  return k > 1 ? Math.min(maxSpeed * k, Math.max(maxSpeed, PACE_CAP)) : maxSpeed * k;
+};
 const START = { x: 0, z: 0, heading: -0.4 };
 
 export function createSim({ seed = 1, mats = {} } = {}) {
@@ -76,7 +84,7 @@ export function tickSim(sim, state, input, dtIn) {
     },
     dt,
   );
-  stepBody(body, intent.target, { ...BODY_OPTS, maxSpeed: intent.maxSpeed, allowEnter: intent.allowEnter, face: intent.face }, dt);
+  stepBody(body, intent.target, { ...BODY_OPTS, maxSpeed: paced(intent.maxSpeed, state.settings?.pace), allowEnter: intent.allowEnter, face: intent.face }, dt);
   stepGait(sim.gait, body, dt);
   stepFood(sim.food, dt);
   stepSilk(sim.silk, body, intent.state, dt);

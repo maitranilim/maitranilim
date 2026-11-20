@@ -139,3 +139,12 @@ test('resetSim places the body, replants the gait and clears food', () => {
   assert.ok(Object.values(sim.gait.feet).every((f) => f.planted));
   assert.equal(sim.brain.state, 'wander');
 });
+
+test('pace scales walking speed; lively never pushes past the flee speed', async () => {
+  const { paced } = await import('../src/app/loop.js');
+  assert.equal(paced(1, 'normal'), 1);
+  assert.ok(Math.abs(paced(1, 'calm') - 0.65) < 1e-9);
+  assert.ok(Math.abs(paced(1, 'lively') - 1.45) < 1e-9);
+  assert.equal(paced(4.5, 'lively'), 4.5); // a flee stays at flee speed
+  assert.equal(paced(1, 'nonsense'), 1);
+});
