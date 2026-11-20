@@ -74,6 +74,17 @@ const PREMOULT_MAX = 12; // re-pick the spot if reaching it takes longer than th
 const FACE_STALL = 0.5; // ... or if the turn to face it stalls this long (ceramic in the way)
 
 const LIGHTS_IDLE = 1.2;
+
+// Personality. Left alone (no pointer nearby, nothing to do) it settles and dozes; anything that
+// stirs it gets a waking stretch first. It sometimes stretches on its own, cleans its fangs after a
+// meal, and taps a still cursor with its front legs once it has walked up to it.
+export const DOZE_AFTER = 25; // seconds of calm before a pause turns into a doze
+const DOZE_WAKE = [50, 90]; // a long doze ends on its own, with a stretch
+const DOZE_SETTLE = 1.5; // seconds to sink into the doze pose
+export const STRETCH_TIME = 1.6;
+const STRETCH_CHANCE = 0.06;
+export const CLEAN_TIME = 2.2;
+const CALM = new Set(['wander', 'idle', 'groom', 'doze']);
 const EPS = 1e-9;
 
 // Lower rank = higher priority. A trigger of priority p interrupts the current state when p < rank
@@ -99,6 +110,11 @@ const RANK = {
   wander: 10,
   idle: 10,
   groom: 10,
+  doze: 10,
+  // A stretch or a clean plays out unless something urgent (a poke, a startle, steering, a moult)
+  // cuts in; lures, food and the cursor wait for it.
+  stretch: 4.5,
+  clean: 4.5,
 };
 
 const MOULTING = new Set(['premoult', 'moult']);
@@ -135,8 +151,18 @@ function startWalk(brain) {
 }
 
 function startPause(brain) {
-  if (brain.rng() < GROOM_CHANCE) enter(brain, 'groom', {}, GROOM_TIME);
+  if (brain.timers.calm >= DOZE_AFTER) return enter(brain, 'doze', {}, span(brain.rng, DOZE_WAKE));
+  const r = brain.rng();
+  if (r < STRETCH_CHANCE) enter(brain, 'stretch', {}, STRETCH_TIME);
+  else if (r < STRETCH_CHANCE + GROOM_CHANCE) enter(brain, 'groom', {}, GROOM_TIME);
   else enter(brain, 'idle', {}, span(brain.rng, PAUSE_TIME));
+}
+
+// Anything that would get a dozing spider's attention (pokes and startles are handled before this).
+function stirs(brain, c) {
+  const p = c.pointer;
+  return !!(c.steer || brain.lure || c.threads.length || c.lightsJustChanged ||
+    (c.food.length && c.satiety < FULL) || (p && dist(c.body, p) < ALERT_RADIUS));
 }
 
 // Picks the hideout whose entrance is far from the threat but near the body (nearest when no threat).
@@ -214,6 +240,7 @@ function arbitrate(brain, c, poked) {
     c.out.trustEvents.push({ type: 'swipe' });
     return;
   }
+  if (brain.state === 'doze' && stirs(brain, c)) return enter(brain, 'stretch', { woke: true }, STRETCH_TIME);
   if (c.mode === 'steer' && c.steer && brain.rank >= RANK.steered) {
     if (brain.state === 'steered') brain.data.target = c.steer;
     else enter(brain, 'steered', { target: c.steer });
@@ -262,6 +289,18 @@ const HANDLERS = {
   },
   idle: pause,
   groom: pause,
+  doze(brain) {
+    if (brain.timers.phase <= 0) return enter(brain, 'stretch', { woke: true }, STRETCH_TIME);
+    return { anim: { kind: 'doze', p: clamp(brain.timers.state / DOZE_SETTLE, 0, 1) } };
+  },
+  stretch(brain) {
+    if (brain.timers.phase <= 0) return startWalk(brain);
+    return { anim: { kind: 'stretch', p: clamp(brain.timers.state / STRETCH_TIME, 0, 1) } };
+  },
+  clean(brain) {
+    if (brain.timers.phase <= 0) return startWalk(brain);
+    return { anim: { kind: 'clean', p: clamp(brain.timers.state / CLEAN_TIME, 0, 1) } };
+  },
   // Walks to (or turns to face) a pose where the body and its cast fit, stops, then moults.
   premoult(brain, c) {
     const b = c.body;
@@ -299,7 +338,9 @@ const HANDLERS = {
       d > APPROACH_GAP
         ? { target: sub(p, scale(norm(sub(p, c.body)), APPROACH_GAP)), maxSpeed: APPROACH_SPEED }
         : { target: p, maxSpeed: 0 };
-    return { ...social(c, p), ...move };
+    // Up close to a cursor that holds still, it reaches out and taps it.
+    const curious = d <= APPROACH_GAP * 1.15 && p.speed < STILL_POINTER;
+    return { ...social(c, p), ...move, anim: curious ? { kind: 'tap', p: 0 } : null };
   },
   // It walks under the pointer at a walking pace (no lunge), then climbs on and is carried.
   ride(brain, c) {
@@ -376,7 +417,7 @@ const HANDLERS = {
     return { target: f, maxSpeed: POUNCE_SPEED, look: f };
   },
   eat(brain) {
-    if (brain.timers.phase <= 0) return startWalk(brain);
+    if (brain.timers.phase <= 0) return enter(brain, 'clean', {}, CLEAN_TIME); // tidies its fangs
     return { look: brain.data.at };
   },
   investigate(brain, c) {
@@ -390,7 +431,7 @@ export function createBrain({ seed } = {}) {
   const brain = {
     state: 'wander',
     rank: RANK.wander,
-    timers: { state: 0, phase: 0, still: 0, cycle: 0 },
+    timers: { state: 0, phase: 0, still: 0, cycle: 0, calm: 0 },
     data: {},
     lure: null,
     pokes: [],
@@ -440,6 +481,9 @@ export function tickBrain(brain, ctx, dtIn) {
   const p = c.pointer;
   const still = p && c.rp.canRide && p.speed < STILL_POINTER && dist(c.body, p) < RIDE_RADIUS;
   t.still = still ? t.still + dt : 0;
+  // Calm: time spent with nothing to do and nobody near. Anything else resets it.
+  const near = p && dist(c.body, p) < ALERT_RADIUS;
+  t.calm = CALM.has(brain.state) && !near && !c.events.length ? t.calm + dt : 0;
 
   const poked = ingest(brain, c);
   arbitrate(brain, c, poked);
@@ -460,6 +504,7 @@ export function tickBrain(brain, ctx, dtIn) {
     look: pt(res.look),
     frontLegsRaise: res.frontLegsRaise ?? 0,
     mounted: res.mounted === true, // riding on the pointer (lifted off the deck)
+    anim: res.anim ?? null, // { kind: 'doze' | 'stretch' | 'clean' | 'tap', p } for the renderer
     twitch: poked,
     eatFoodId: c.out.eatFoodId,
     trustEvents: c.out.trustEvents,

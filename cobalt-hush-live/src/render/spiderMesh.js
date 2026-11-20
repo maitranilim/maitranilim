@@ -58,6 +58,7 @@ const HAIR_NIGHT = new THREE.Color();
 const PAVILION_DAY = new THREE.Color(0.2, 0.3, 0.55);
 const PAVILION_NIGHT = new THREE.Color(0.36, 0.36, 0.36);
 const RAISE_LIFT = 0.35;
+const DOZE_DROP = 0.15; // design units the body sinks when dozing
 const TWITCH_TIME = 0.12;
 const TWITCH_HOP = 0.04;
 const SHELL_SLIDE = 1.15; // design units: the cast ends up 1.15 x SPIDER_SCALE behind the body (R18, loop's CAST_OFFSET)
@@ -414,6 +415,12 @@ export function createSpider(scene, { shade = 0 } = {}) {
   let lastTime = null;
   let raise = 0;
   let tap = 0;
+  // Personality poses (brain intent.anim), each eased so an interruption never pops.
+  let dozeW = 0;
+  let cleanW = 0;
+  let curious = 0;
+  let stretchF = 0;
+  let stretchR = 0;
   let twitch = 0;
   let pulse = 0;
   let shell = null; // { shade, root, night } — the cast shown during the moult's emerge phase
@@ -488,6 +495,22 @@ export function createSpider(scene, { shade = 0 } = {}) {
     else twitch = Math.max(0, twitch - dt);
     const k = twitch / TWITCH_TIME; // 1 -> 0 over the twitch
     const hop = k > 0 ? TWITCH_HOP * Math.sin(Math.PI * (1 - k)) : 0;
+    const anim = intent?.anim ?? null;
+    const st = anim?.kind === 'stretch' ? anim.p : -1;
+    dozeW = damp(dozeW, anim?.kind === 'doze' ? anim.p : 0, 3, dt);
+    cleanW = damp(cleanW, anim?.kind === 'clean' ? 1 : 0, 8, dt);
+    curious = damp(curious, anim?.kind === 'tap' ? 1 : 0, 6, dt);
+    // A stretch reaches the front pair up and forward, then pushes the back pair out behind.
+    stretchF = damp(stretchF, st >= 0 ? Math.sin(Math.PI * clamp(st / 0.6, 0, 1)) : 0, 14, dt);
+    stretchR = damp(stretchR, st >= 0 ? Math.sin(Math.PI * clamp((st - 0.4) / 0.6, 0, 1)) : 0, 14, dt);
+    if (anim?.snap) { // test-only: show the pose fully, without easing
+      dozeW = anim.kind === 'doze' ? anim.p : 0;
+      cleanW = anim.kind === 'clean' ? 1 : 0;
+      curious = anim.kind === 'tap' ? 1 : 0;
+      stretchF = st >= 0 ? Math.sin(Math.PI * clamp(st / 0.6, 0, 1)) : 0;
+      stretchR = st >= 0 ? Math.sin(Math.PI * clamp((st - 0.4) / 0.6, 0, 1)) : 0;
+    }
+    const awake = 1 - dozeW;
 
     rig.root.position.set(body.x, 0, body.z);
     rig.root.rotation.y = -body.heading;
@@ -496,7 +519,7 @@ export function createSpider(scene, { shade = 0 } = {}) {
     const roll = !moult ? 0 : moult.phase === 'roll' ? moult.p : moult.phase === 'emerge' ? 1 : moult.phase === 'rollBack' ? 1 - moult.p : 0;
 
     solveRig(rig, {
-      height: DESIGN_HIP + hop,
+      height: DESIGN_HIP + hop - DOZE_DROP * dozeW + 0.06 * stretchF,
       roll,
       targets(limb, i) {
         if (i < 8) {
@@ -504,12 +527,31 @@ export function createSpider(scene, { shade = 0 } = {}) {
           const dx = f.x - body.x;
           const dz = f.z - body.z;
           ground.set(c * dx + s * dz, f.y, -s * dx + c * dz).multiplyScalar(DESIGN);
-          if (LEGS[i].index === 0) ground.y += RAISE_LIFT * raise;
+          const leg = LEGS[i];
+          if (leg.index === 0) {
+            ground.y += RAISE_LIFT * raise + 0.55 * stretchF;
+            ground.x += 0.32 * stretchF;
+            // Curious: the front pair take turns reaching out to tap the cursor.
+            const turn = Math.max(0, Math.sin(time * 3.4 + (leg.side > 0 ? Math.PI : 0)));
+            ground.y += 0.4 * curious * turn;
+            ground.x += 0.12 * curious;
+          } else if (leg.index === 3) {
+            ground.x -= 0.32 * stretchR;
+            ground.y += 0.12 * stretchR;
+          }
+          // Dozing: feet drawn in a little under the lowered body.
+          ground.x *= 1 - 0.16 * dozeW;
+          ground.z *= 1 - 0.2 * dozeW;
         } else {
           ground.copy(limb.rest);
           const phase = time * Math.PI * 2 * 1.7 + (limb.side > 0 ? Math.PI : 0);
-          ground.y += 0.05 * tap * Math.max(0, Math.sin(phase)) + 0.2 * raise;
+          ground.y += 0.05 * tap * awake * Math.max(0, Math.sin(phase)) + 0.2 * raise - 0.06 * dozeW;
           ground.x -= 0.06 * raise;
+          // Cleaning: the palps come together at the fangs and rub, alternately.
+          const rub = Math.max(0, Math.sin(time * 10 + (limb.side > 0 ? Math.PI : 0)));
+          ground.y += cleanW * (0.08 * rub - 0.04);
+          ground.x -= 0.1 * cleanW;
+          ground.z *= 1 - 0.55 * cleanW;
         }
         if (k > 0) { // a decaying high-frequency shiver
           ground.y += 0.03 * k * (0.5 + 0.5 * Math.sin(time * 95 + i * 2.1));
@@ -521,7 +563,8 @@ export function createSpider(scene, { shade = 0 } = {}) {
 
     for (const g of rig.gears) g.mesh.rotation.y = time * g.speed;
     pulse = clamp(eatPulse, 0, 1);
-    rig.abdomen.scale.setScalar(1 + 0.04 * pulse);
+    // Eating pulses; a doze breathes slowly.
+    rig.abdomen.scale.setScalar(1 + 0.04 * pulse + 0.03 * dozeW * (0.5 + 0.5 * Math.sin(time * 1.4)));
     setGem();
     showShell(moult);
   }

@@ -180,7 +180,7 @@ async function live(stage) {
   let paused = false; // test-only
   let simSpeed = 1; // test-only: sim ticks per rendered frame (swiftshader renders ~1-2 fps)
   let stopAt = null; // test-only: pause once the sim clock reaches this (seconds)
-  let debugPose = null; // test-only override: { moult } | { eatPulse }
+  let debugPose = null; // test-only override: { moult } | { eatPulse } | { anim }
   let closeup = false; // test-only camera
   let out = null; // last tick's result
   let rideK = 0;
@@ -243,7 +243,7 @@ async function live(stage) {
     spider.pose({
       body,
       gait: sim.gait,
-      intent: paused ? null : out?.intent ?? null,
+      intent: debugPose?.anim ? { ...(out?.intent ?? {}), anim: { ...debugPose.anim, snap: true } } : paused ? null : out?.intent ?? null,
       moult: debugPose?.moult ?? out?.moult ?? null,
       time,
       eatPulse: debugPose?.eatPulse ?? out?.eatPulse ?? 0,
