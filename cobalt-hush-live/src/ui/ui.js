@@ -22,6 +22,7 @@ const ICONS = {
   calm: svg('<path d="M10 7l5 5-5 5"/>'),
   normal: svg('<path d="M7 7l5 5-5 5M12 7l5 5-5 5"/>'),
   lively: svg('<path d="M4.5 7l5 5-5 5M9.5 7l5 5-5 5M14.5 7l5 5-5 5"/>'),
+  arrange: svg('<path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>'),
   soundOn: svg('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
   soundOff: svg('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 10l4 4M20 10l-4 4"/>'),
   moult: svg('<path d="M12 3.5 19 8v8l-7 4.5L5 16V8z"/><path d="M12 9.5 15 11.3v3.4l-3 1.8-3-1.8v-3.4z"/>'),
@@ -72,7 +73,8 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
   const seg = el('div', { class: 'hush-seg', role: 'group', 'aria-label': 'Move mode' });
   const lureBtn = el('button', { type: 'button', class: 'hush-btn seg-btn', 'data-move': 'lure' }, '<span class="lbl">Lure</span>');
   const steerBtn = el('button', { type: 'button', class: 'hush-btn seg-btn', 'data-move': 'steer' }, '<span class="lbl">Steer</span>');
-  seg.append(lureBtn, steerBtn);
+  const arrangeBtn = el('button', { type: 'button', class: 'hush-btn seg-btn arrange', 'data-move': 'arrange', 'aria-label': 'Arrange: drag the hiding spots' }, `${ICONS.arrange}<span class="lbl">Arrange</span>`);
+  seg.append(lureBtn, steerBtn, arrangeBtn);
   const moultBtn = el(
     'button',
     { type: 'button', class: 'hush-btn moults', 'aria-label': 'Moults', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' },
@@ -106,7 +108,9 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
     paceBtn.setAttribute('aria-label', `Walking pace: ${PACE_LABEL[p]}. Change pace`);
     soundBtn.setAttribute('aria-pressed', String(settings.sound === 'on'));
     soundBtn.querySelector('.ico-slot').innerHTML = settings.sound === 'on' ? ICONS.soundOn : ICONS.soundOff;
-    for (const b of [lureBtn, steerBtn]) b.setAttribute('aria-pressed', String(b.dataset.move === settings.move));
+    // Hover tooltips, for when the toolbar is icon-only.
+    for (const b of bar.querySelectorAll('button')) b.title = b.getAttribute('aria-label') || b.textContent.trim();
+    for (const b of [lureBtn, steerBtn, arrangeBtn]) b.setAttribute('aria-pressed', String(b.dataset.move === settings.move));
   }
   function paintFeed() {
     feedBtn.setAttribute('aria-pressed', String(feedArmed));
@@ -196,7 +200,7 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
     paintSettings();
     onPace?.(settings.pace);
   });
-  for (const b of [lureBtn, steerBtn]) {
+  for (const b of [lureBtn, steerBtn, arrangeBtn]) {
     b.addEventListener('click', () => {
       if (settings.move === b.dataset.move) return;
       settings.move = b.dataset.move;

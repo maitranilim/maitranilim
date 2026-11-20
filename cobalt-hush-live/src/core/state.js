@@ -17,7 +17,7 @@ export const SHADES = [
 
 const LIGHTS = ['on', 'off'];
 const MATERIALS = ['solid', 'translucent', 'ghost'];
-const MOVES = ['lure', 'steer'];
+const MOVES = ['lure', 'steer', 'arrange'];
 export const PACES = ['calm', 'normal', 'lively'];
 const SOUNDS = ['off', 'on'];
 
@@ -32,6 +32,7 @@ export function defaultState(now) {
     shadeIndex: 0,
     moults: [],
     mats: {},
+    layout: {}, // hideout id -> { x, z } where the player moved it
     settings: { lights: 'on', material: 'translucent', move: 'lure', pace: 'normal', sound: 'off' },
   };
 }
@@ -65,6 +66,14 @@ export function migrate(raw, now) {
   if (raw.mats && typeof raw.mats === 'object' && !Array.isArray(raw.mats)) {
     for (const k of Object.keys(raw.mats)) if (isNum(raw.mats[k])) mats[k] = clamp(raw.mats[k], 0, 1);
   }
+  const layout = {};
+  if (raw.layout && typeof raw.layout === 'object' && !Array.isArray(raw.layout)) {
+    for (const k of Object.keys(raw.layout)) {
+      const at = raw.layout[k];
+      if (!/^[a-z]+$/.test(k) || !at || !isNum(at.x) || !isNum(at.z)) continue;
+      layout[k] = { x: clamp(at.x, -20, 20), z: clamp(at.z, -20, 20) };
+    }
+  }
   const s = raw.settings && typeof raw.settings === 'object' ? raw.settings : {};
   const shade = raw.shadeIndex;
   return {
@@ -77,6 +86,7 @@ export function migrate(raw, now) {
     shadeIndex: Number.isInteger(shade) && shade >= 0 && shade < SHADES.length ? shade : 0,
     moults,
     mats,
+    layout,
     settings: {
       lights: pick(s.lights, LIGHTS, d.settings.lights),
       material: pick(s.material, MATERIALS, d.settings.material),

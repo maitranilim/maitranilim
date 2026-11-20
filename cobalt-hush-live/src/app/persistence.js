@@ -8,7 +8,7 @@ export const BOOT_WAIT_MS = 1500;
 // What counts as a change worth saving: trust, moults, mats, settings, shade. (Satiety and the
 // clocks ride along with those saves and the flush on hide.)
 function saveKey(s) {
-  return JSON.stringify([s.trust, s.shadeIndex, s.moults.length, s.moults[0]?.id, s.mats, s.settings]);
+  return JSON.stringify([s.trust, s.shadeIndex, s.moults.length, s.moults[0]?.id, s.mats, s.settings, s.layout]);
 }
 
 // Storage answered after play began: keep the saved spider and add what happened since `base`
@@ -30,6 +30,8 @@ export function mergeLoaded(session, base, loaded) {
     sinceMoult: Math.max(0, loaded.sinceMoult + (session.sinceMoult - base.sinceMoult)),
     mats,
     settings,
+    // A layout rearranged this session wins; otherwise the saved one.
+    layout: JSON.stringify(session.layout ?? {}) !== JSON.stringify(base.layout ?? {}) ? session.layout : loaded.layout ?? {},
   };
 }
 

@@ -41,7 +41,7 @@ function wiresFor(h, angles, progress) {
 }
 
 export function createSilk(mats = {}, { seed = 0 } = {}) {
-  const silk = { draglines: [], mats: {}, tripwires: {}, ripples: [], last: null, angles: {} };
+  const silk = { draglines: [], mats: {}, tripwires: {}, ripples: [], last: null, angles: {}, seed };
   for (const h of HIDEOUTS) {
     const v = mats[h.id];
     silk.mats[h.id] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
@@ -49,6 +49,15 @@ export function createSilk(mats = {}, { seed = 0 } = {}) {
     silk.tripwires[h.id] = wiresFor(h, silk.angles[h.id], silk.mats[h.id]);
   }
   return silk;
+}
+
+// A hideout was moved: its old mat stays behind (gone), and the web starts over at the new entrance.
+export function resetHideoutSilk(silk, id) {
+  const h = HIDEOUTS.find((q) => q.id === id);
+  if (!h) return;
+  silk.mats[id] = 0;
+  silk.angles[id] = rayAngles(h, silk.seed ?? 0);
+  silk.tripwires[id] = wiresFor(h, silk.angles[id], 0);
 }
 
 export function stepSilk(silk, body, brainState, dt) {

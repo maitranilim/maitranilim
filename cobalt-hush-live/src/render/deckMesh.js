@@ -25,19 +25,29 @@ export function createDeck(scene) {
   for (const h of HIDEOUTS) {
     const group = new THREE.Group();
     group.name = `hideout-${h.id}`;
+    const piece = new THREE.Group(); // the piece itself, lifted while carried; its shadow stays put
     const { meshes, blob } = builders[h.kind](h.r);
     for (const m of meshes) {
       m.castShadow = true;
       m.receiveShadow = true;
-      group.add(m);
+      piece.add(m);
     }
-    group.add(contactShadow(blobTexture, h.r * blob.x, h.r * blob.z, blob.opacity));
-    group.position.set(h.x, 0, h.z);
-    group.rotation.y = -h.rot; // three's +y rotation turns +x toward -z; HIDEOUTS rot is atan2(z, x)
+    group.add(piece, contactShadow(blobTexture, h.r * blob.x, h.r * blob.z, blob.opacity));
+    group.userData.piece = piece;
     scene.add(group);
     hideoutMeshes[h.id] = group;
+    placeHideout(h.id, h.x, h.z, h.rot);
   }
-  return { hideoutMeshes };
+
+  // Moves a hideout's meshes (`lift` raises the piece above its shadow while it is carried).
+  function placeHideout(id, x, z, rot, lift = 0) {
+    const group = hideoutMeshes[id];
+    if (!group) return;
+    group.position.set(x, 0, z);
+    group.rotation.y = -rot; // three's +y rotation turns +x toward -z; HIDEOUTS rot is atan2(z, x)
+    group.userData.piece.position.y = lift;
+  }
+  return { hideoutMeshes, placeHideout };
 }
 
 function deckGeometry() {

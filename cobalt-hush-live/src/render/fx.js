@@ -339,5 +339,10 @@ export function createFx(stage) {
     updateShells(shellList, night);
   }
 
-  return { update, counts: () => ({ food: motes.filter((m) => m.group.visible).length, shells: shells.size }) };
+  // Hideouts moved: the silk mat discs follow their entrances.
+  function relayout() {
+    for (const h of HIDEOUTS) discs.get(h.id)?.position.set(h.entrance.x, SILK_Y - 0.004, h.entrance.z);
+  }
+
+  return { update, relayout, counts: () => ({ food: motes.filter((m) => m.group.visible).length, shells: shells.size }) };
 }

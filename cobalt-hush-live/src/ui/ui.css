@@ -154,10 +154,14 @@
   100% { opacity: 0; }
 }
 
+/* Icons only below laptop widths: every direct toolbar button, and Arrange (Lure/Steer keep their
+   words). Each button keeps an aria-label, so nothing is lost to screen readers. */
+@media (max-width: 979px) {
+  .hush-bar > .hush-btn .lbl { display: none; }
+  .hush-seg .arrange .lbl { display: none; }
+}
 @media (max-width: 419px) {
   .hush-btn { padding: 0 10px; }
-  /* Icons only on narrow screens: every direct toolbar button (the Lure/Steer segment keeps its words). */
-  .hush-bar > .hush-btn .lbl { display: none; }
   .hush-bar .moults { gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {

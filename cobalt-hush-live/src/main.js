@@ -6,7 +6,9 @@ import { createMist, MIST_COUNTS } from './render/mist.js';
 import { createFx } from './render/fx.js';
 import { HIP_HEIGHT, SPIDER_SCALE } from './sim/gait.js';
 import { dropFood } from './sim/food.js';
-import { createSilk } from './sim/silk.js';
+import { createSilk, resetHideoutSilk } from './sim/silk.js';
+import { HIDEOUTS, applyLayout, fitHideout, hideoutLayout, moveHideout } from './sim/deck.js';
+import { capsuleHideout } from './sim/locomotion.js';
 import { castPose, completeMoult, deckShells } from './sim/moult.js';
 import { createGestures } from './input/pointer.js';
 import { createUI, showNotice } from './ui/ui.js';
@@ -59,6 +61,7 @@ function rememberTier(q) {
 const persist = createPersistence({ claudeUse: window.claude?.use?.bind(window.claude), localStorage: safeLocal() });
 const hinted = peekSettings(safeLocal());
 
+const CARRY_LIFT = 0.22; // how high a carried hiding spot floats above its shadow
 const canvas = document.getElementById('stage');
 const uiRoot = document.getElementById('ui');
 const pin = testMode ? params.get('quality') : null; // test-only: ?quality=high shoots the real look
@@ -78,7 +81,7 @@ if (stage) live(stage);
 
 // The live terrarium: scene, sim, input, UI and saving, on a working WebGL stage.
 async function live(stage) {
-  createDeck(stage.scene);
+  const deck = createDeck(stage.scene);
   const spider = createSpider(stage.scene, { shade: 0 });
   const mist = createMist(stage.scene, stage.quality, { reducedMotion });
   stage.onQualityChange((q) => {
@@ -125,7 +128,8 @@ async function live(stage) {
       setSettings({ material: m });
     },
     onMove: (m) => {
-      if (m === 'steer') pending.push({ type: 'lure', held: false }); // a lure never outlives Lure mode
+      if (m !== 'lure') pending.push({ type: 'lure', held: false }); // a lure never outlives Lure mode
+      if (m !== 'arrange' && carrying) dropCarried();
       setSettings({ move: m });
     },
     onPace: (p) => setSettings({ pace: p }),
@@ -180,9 +184,63 @@ async function live(stage) {
     ui.setSettings(state.settings);
     ui.setMoults(state.moults);
     ui.setTrust(state.trust);
+    showLayout(state.layout);
     sim.silk = createSilk(state.mats, { seed });
     persist.begin(state);
     armSound();
+  }
+
+  // ---- arranging the deck (Arrange mode: drag a hiding spot somewhere new) ----
+  function showLayout(layout) {
+    applyLayout(layout);
+    for (const h of HIDEOUTS) deck.placeHideout(h.id, h.x, h.z, h.rot);
+    fx.relayout();
+  }
+  let carrying = null; // { id, offset, at } while a piece is being dragged
+  let arrangedThreads = []; // the moved piece's entrance: the spider comes to look (next tick)
+  const facing = (p) => Math.atan2(-p.z, -p.x); // pieces face the deck centre, as placed
+  function pickHideout(p) {
+    const h = HIDEOUTS.find((q) => Math.hypot(p.x - q.x, p.z - q.z) < q.r + 0.15);
+    if (!h) return null;
+    const inside = capsuleHideout(sim.body)?.id === h.id || sim.brain.data?.hideoutId === h.id;
+    return inside ? null : h; // never pull the roof off a hiding spider
+  }
+  function dropCarried() {
+    const { id, at } = carrying;
+    carrying = null;
+    const h = moveHideout(id, at);
+    resetHideoutSilk(sim.silk, id);
+    deck.placeHideout(id, h.x, h.z, h.rot);
+    fx.relayout();
+    state = { ...state, layout: hideoutLayout(), mats: { ...sim.silk.mats } };
+    arrangedThreads = [{ x: h.entrance.x, z: h.entrance.z }];
+    sound.place();
+  }
+  // Takes the drags and holds (which carry pieces); taps go on to the normal routing (pokes, food).
+  function arrangeGestures(list) {
+    const rest = [];
+    for (const g of list) {
+      if (g.type === 'tap') {
+        rest.push(g);
+        continue;
+      }
+      if (g.type === 'dragEnd' || g.type === 'holdEnd') {
+        if (carrying) dropCarried();
+        continue;
+      }
+      const p = stage.groundPoint(g.clientX, g.clientY);
+      if (!p) continue;
+      if (g.type === 'dragStart' || g.type === 'holdStart') {
+        if (carrying) continue;
+        const h = pickHideout(p);
+        if (h) carrying = { id: h.id, offset: { x: p.x - h.x, z: p.z - h.z }, at: { x: h.x, z: h.z } };
+      } else if (carrying) {
+        const want = { x: p.x - carrying.offset.x, z: p.z - carrying.offset.z };
+        const fit = fitHideout(carrying.id, want, [{ x: sim.body.x, z: sim.body.z, r: 1.1 * SPIDER_SCALE }]);
+        if (fit) carrying.at = fit;
+      }
+    }
+    return rest;
   }
 
   window.addEventListener('resize', () => stage.resize());
@@ -215,7 +273,8 @@ async function live(stage) {
     const { pointer: hover, gestures: list } = gestures.frame(nowMs);
     const pointer = tracker.update(hover ? stage.groundPoint(hover.clientX, hover.clientY) : null, nowMs, input.down);
     if (!paused) {
-      const routed = routeGestures(list, {
+      const arranging = state.settings.move === 'arrange';
+      const routed = routeGestures(arranging ? arrangeGestures(list) : list, {
         toWorld: (g) => stage.groundPoint(g.clientX, g.clientY),
         mode: state.settings.move,
         feedArmed,
@@ -240,7 +299,7 @@ async function live(stage) {
         const first = i === 0;
         out = tickSim(sim, state, {
           events: first ? events : [],
-          threads: first ? routed.threads : [], // a ripple is felt on the tap tick only
+          threads: first ? [...routed.threads, ...arrangedThreads] : [], // felt on this tick only
           pointer,
           mode: state.settings.move,
           lightsJustChanged: first && lightsChanged,
@@ -258,6 +317,7 @@ async function live(stage) {
         prevBrainState = out.intent.state;
       }
       lightsChanged = false;
+      arrangedThreads = [];
       time += dt * simSpeed;
     }
 
@@ -284,6 +344,9 @@ async function live(stage) {
 
     mist.update(body, lights.value, dt);
     fx.update({ silk: sim.silk, food: sim.food, shells: deckShells(state), lure: sim.brain.lure, night: lights.value, dt });
+    if (carrying) deck.placeHideout(carrying.id, carrying.at.x, carrying.at.z, facing(carrying.at), CARRY_LIFT);
+    canvas.style.cursor = carrying ? 'grabbing'
+      : state.settings.move === 'arrange' && pointer && pickHideout(pointer) ? 'grab' : '';
     stage.follow(body.x, body.z, dt);
     if (closeup) frameCloseup();
     stage.render(wallDt);

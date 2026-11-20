@@ -163,5 +163,23 @@ export function createSound() {
     }
   }
 
-  return { setEnabled, armFromGesture, setNight, step, eat, startle, chime, get enabled() { return enabled; } };
+  // A hiding spot set down on the deck: a soft, low thud.
+  function place() {
+    if (!live()) return;
+    const t0 = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(140, t0);
+    o.frequency.exponentialRampToValueAtTime(60, t0 + 0.2);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
+    o.connect(g).connect(master);
+    o.start(t0);
+    o.stop(t0 + 0.35);
+    burst({ dur: 0.12, type: 'lowpass', freq: 700, q: 0.7, gain: 0.05 });
+  }
+
+  return { setEnabled, armFromGesture, setNight, step, eat, startle, chime, place, get enabled() { return enabled; } };
 }
