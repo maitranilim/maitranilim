@@ -33,7 +33,7 @@ It starts as a juvenile and grows a little at every moult (about every 13 minute
 
 ```bash
 npm install          # three.js for the vendor step and tests
-npm test             # 136 unit tests (node --test)
+npm test             # 157 unit tests (node --test)
 npm run e2e          # browser smoke test (Playwright + Chromium)
 ```
 
