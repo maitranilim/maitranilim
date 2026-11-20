@@ -12,7 +12,7 @@ import { capsuleHideout } from './sim/locomotion.js';
 import { castPose, completeMoult, deckShells } from './sim/moult.js';
 import { createGestures } from './input/pointer.js';
 import { createUI, showNotice } from './ui/ui.js';
-import { defaultState } from './core/state.js';
+import { PATTERN_NAME, defaultState } from './core/state.js';
 import { clamp, damp, lerp } from './core/math.js';
 import { createSim, resetSim, tickSim } from './app/loop.js';
 import { attachInput, createPointerTracker, feedAhead, keyEvents, routeGestures } from './app/inputBridge.js';
@@ -133,11 +133,21 @@ async function live(stage) {
       setSettings({ move: m });
     },
     onPace: (p) => setSettings({ pace: p }),
+    onPattern: (p) => {
+      if (!state.patterns.includes(p)) return;
+      state = { ...state, pattern: p };
+      spider.setPattern(p);
+    },
     onSound: (v) => {
       setSettings({ sound: v });
       sound.setEnabled(v === 'on'); // inside the click: allowed to start audio
     },
   });
+
+  // A brand-new spider (nothing saved yet) starts at its juvenile size, in its first pattern.
+  spider.setSize(state.size);
+  spider.setPattern(state.pattern);
+  ui.setPatterns(state.patterns, state.pattern);
 
   function setSettings(patch) {
     state = { ...state, settings: { ...state.settings, ...patch } };
@@ -179,6 +189,9 @@ async function live(stage) {
   function adopt(next, { fade }) {
     state = next;
     spider.setShade(state.shadeIndex);
+    spider.setSize(state.size);
+    spider.setPattern(state.pattern);
+    ui.setPatterns(state.patterns, state.pattern);
     spider.setMaterial(state.settings.material);
     if ((lights.to === 1) !== (state.settings.lights === 'off')) setLights(state.settings.lights, { fade });
     ui.setSettings(state.settings);
@@ -259,6 +272,7 @@ async function live(stage) {
   let out = null; // last tick's result
   let rideK = 0;
   let prevBrainState = null;
+  let prevPatterns = state.patterns;
   const planted = {}; // foot id -> planted last frame, for footstep sounds
   const rideAt = { x: 0, z: 0 };
   let time = 0;
@@ -290,6 +304,7 @@ async function live(stage) {
       const events = [...pending, ...routed.events, ...keyEvents(gestures.keyVector(), state.settings.move, stage.yaw)];
       pending = [];
       const active = document.visibilityState === 'visible' && nowMs - lastInput < IDLE_MS;
+      sim.gait.size = state.size ?? 1; // it stands and steps at its grown size
       for (let i = 0; i < simSpeed; i++) {
         if (stopAt !== null && sim.now >= stopAt - 1e-9) {
           paused = true;
@@ -308,10 +323,17 @@ async function live(stage) {
         }, dt);
         state = out.state;
         if (out.moulted) {
+          const had = new Set(prevPatterns);
           spider.setShade(state.shadeIndex);
+          spider.setSize(state.size);
+          spider.setPattern(state.pattern);
           ui.setMoults(state.moults);
+          ui.setPatterns(state.patterns, state.pattern);
+          const fresh = state.patterns.filter((p) => !had.has(p));
+          ui.toast(fresh.length ? `New pattern: ${PATTERN_NAME[fresh[fresh.length - 1]]}` : 'It moulted, and grew a little');
           sound.chime();
         }
+        prevPatterns = state.patterns;
         if (out.intent.eatFoodId) sound.eat();
         if (out.intent.state === 'flee' && prevBrainState !== 'flee') sound.startle();
         prevBrainState = out.intent.state;
@@ -424,9 +446,12 @@ async function live(stage) {
         sim.silk = createSilk({ bark: 1 }, { seed }); // a full mat at the bark hideout
       },
       debugMoult: () => {
-        state = completeMoult(state, castPose(sim.body), Date.now() + state.moults.length);
+        state = completeMoult(state, castPose(sim.body, state.size ?? 1), Date.now() + state.moults.length);
         spider.setShade(state.shadeIndex);
+        spider.setSize(state.size);
+        spider.setPattern(state.pattern);
         ui.setMoults(state.moults);
+        ui.setPatterns(state.patterns, state.pattern);
       },
       pause: (on) => {
         paused = !!on;

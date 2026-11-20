@@ -13,15 +13,21 @@ Built with three.js (bundled under `vendor/three/`, so the page loads nothing fr
 
 | Action | What happens |
 |---|---|
-| Move near it slowly | It pauses, raises its front legs, watches you |
-| Move fast near it | It startles and flees (how far depends on trust) |
+| Move near it slowly | It pauses, raises its front legs, watches you; up close to a still cursor it taps it |
+| Move fast near it | It startles: a shy spider runs to cover, a trusting one skitters a little way |
 | Tap it | A twitch; three pokes in a row and it hides |
-| **Lights** | Day (white deck, no glow) ↔ night (it glows) |
-| **Feed**, then tap the deck | Drops a moth; it stalks, pounces and eats |
+| Leave it alone | It wanders, grooms, stretches, and after a while dozes (anything that stirs it gets a stretch first) |
+| **Lights** | Day (white deck, no glow) ↔ night (moonlit, it glows) |
+| **Feed**, then tap the deck | Drops a moth; it stalks, pounces, eats, then cleans its fangs |
+| **Pace** | Calm / Normal / Lively walking speed |
 | **Lure**: press and hold the deck | A soft light it walks to when it trusts you |
 | **Steer**: drag, or WASD / arrow keys | Walk it anywhere, including into a hiding spot |
+| **Arrange**: drag a hiding spot | Move the bark, stone, leaves, moss and log; it re-webs and comes to look |
 | **Solid / Translucent / Ghost** | Changes the material |
-| **Moults** | Your collection of shed shells |
+| **Sound** | Soft synthesized sound (off by default) |
+| **Moults** | Your shed shells (with the size it was) and the abdomen patterns it has unlocked |
+
+It starts as a juvenile and grows a little at every moult (about every 13 minutes of play). Patterns unlock at moults 1, 3 and 5, and one rare pattern turns up by chance.
 
 ## Develop
 

@@ -109,8 +109,12 @@ test('a due moult plays through, then leaves the cast behind the body in the old
   assert.equal(s.moults[0].shadeIndex, 0);
   assert.equal(s.moults[0].at, 5000);
   assert.equal(CAST_OFFSET, 1.15 * SPIDER_SCALE);
-  assert.ok(Math.abs(s.moults[0].x - (at.x - Math.cos(at.h) * CAST_OFFSET)) < 1e-9);
-  assert.ok(Math.abs(s.moults[0].z - (at.z - Math.sin(at.h) * CAST_OFFSET)) < 1e-9);
+  // The cast lies behind by the offset at the size the spider was when it moulted (a juvenile here).
+  const size = defaultState(0).size;
+  assert.equal(s.moults[0].size, size);
+  assert.ok(Math.abs(s.moults[0].x - (at.x - Math.cos(at.h) * CAST_OFFSET * size)) < 1e-9);
+  assert.ok(Math.abs(s.moults[0].z - (at.z - Math.sin(at.h) * CAST_OFFSET * size)) < 1e-9);
+  assert.ok(s.size > size, 'it grew');
   assert.equal(s.moults[0].rot, at.h);
   assert.ok(s.sinceMoult < 7, 'clock restarted');
 });

@@ -1,4 +1,4 @@
-import { SHADES } from '../core/state.js';
+import { PATTERN_UNLOCK, SHADES, SIZE } from '../core/state.js';
 import { BOUNDS, HIDEOUTS } from './deck.js';
 import { SPIDER_SCALE } from './gait.js';
 import { BODY_BACK, BODY_CLEARANCE, BODY_FRONT, BODY_RADIUS } from './locomotion.js';
@@ -19,13 +19,33 @@ export function isMoultDue(state) {
   return state.sinceMoult >= MOULT_INTERVAL;
 }
 
-// Leaves a shell in the old shade, then moves on to the next shade.
+const RARE_CHANCE = 15; // percent per moult (from the second on) to find the rare 'opal' pattern
+const RARE_BY = 8; // ... found by this moult at the latest
+
+// A stable 0..99 roll from the moult's time, so a moult's luck is the same however it is replayed.
+const roll = (now) => Math.floor(Math.abs(Math.sin(now * 12.9898) * 43758.5453)) % 100;
+
+// The patterns moult number `n` (1-based) newly unlocks.
+export function unlocksAt(n, have, now) {
+  const fresh = Object.entries(PATTERN_UNLOCK).filter(([p, at]) => at === n && !have.includes(p)).map(([p]) => p);
+  if (!have.includes('opal') && n >= 2 && (roll(now) < RARE_CHANCE || n >= RARE_BY)) fresh.push('opal');
+  return fresh;
+}
+
+// Leaves a shell in the old shade and size, then moves on to the next shade, grows a little, and
+// may unlock a new abdomen pattern (which it then wears).
 export function completeMoult(state, body, now) {
-  const shell = { id: 'm' + now, shadeIndex: state.shadeIndex, at: now, x: body.x, z: body.z, rot: body.heading };
+  const size = state.size ?? 1;
+  const shell = { id: 'm' + now, shadeIndex: state.shadeIndex, at: now, x: body.x, z: body.z, rot: body.heading, size };
+  const have = state.patterns ?? ['faint'];
+  const fresh = unlocksAt(state.moults.length + 1, have, now);
   return {
     ...state,
     shadeIndex: (state.shadeIndex + 1) % SHADES.length,
     sinceMoult: 0,
+    size: Math.min(SIZE.adult, +(size + SIZE.step).toFixed(4)),
+    patterns: [...have, ...fresh],
+    pattern: fresh.length ? fresh[fresh.length - 1] : state.pattern ?? 'faint',
     moults: [shell, ...state.moults].slice(0, MAX_MOULTS),
   };
 }
@@ -43,10 +63,11 @@ export function moultPhase(t) {
   return { phase: 'done', p: 1 };
 }
 
-// Where the old skin is left when a spider standing at `body` finishes its moult.
-export function castPose(body) {
+// Where the old skin is left when a spider (of growth `size`) standing at `body` finishes its moult.
+export function castPose(body, size = 1) {
   const h = body.heading;
-  return { x: body.x - Math.cos(h) * CAST_OFFSET, z: body.z - Math.sin(h) * CAST_OFFSET, heading: h };
+  const d = CAST_OFFSET * size;
+  return { x: body.x - Math.cos(h) * d, z: body.z - Math.sin(h) * d, heading: h };
 }
 
 function segmentDist(p, a, b) {

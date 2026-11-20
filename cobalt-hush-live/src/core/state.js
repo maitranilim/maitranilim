@@ -19,6 +19,13 @@ const LIGHTS = ['on', 'off'];
 const MATERIALS = ['solid', 'translucent', 'ghost'];
 const MOVES = ['lure', 'steer', 'arrange'];
 export const PACES = ['calm', 'normal', 'lively'];
+// Growth: a new spider starts as a juvenile and grows a little at every moult, up to adult size.
+export const SIZE = { juvenile: 0.86, adult: 1.15, step: 0.04 };
+// Abdomen patterns, in unlock order: 'faint' from the start, then milestones (moult number),
+// and 'opal' as a rare find.
+export const PATTERNS = ['faint', 'chevron', 'constellation', 'gilded', 'opal'];
+export const PATTERN_UNLOCK = { chevron: 1, constellation: 3, gilded: 5, opal: 'rare' };
+export const PATTERN_NAME = { faint: 'Faint chevrons', chevron: 'Bold chevrons', constellation: 'Constellation', gilded: 'Gilded', opal: 'Opal' };
 const SOUNDS = ['off', 'on'];
 
 export function defaultState(now) {
@@ -30,6 +37,9 @@ export function defaultState(now) {
     lastSeen: now,
     sinceMoult: 0,
     shadeIndex: 0,
+    size: SIZE.juvenile,
+    patterns: ['faint'],
+    pattern: 'faint',
     moults: [],
     mats: {},
     layout: {}, // hideout id -> { x, z } where the player moved it
@@ -50,6 +60,7 @@ function cleanMoult(m) {
     x: isNum(m.x) ? m.x : 0,
     z: isNum(m.z) ? m.z : 0,
     rot: isNum(m.rot) ? m.rot : 0,
+    size: num(m.size, 0.8, 1.2, 1), // the size it was when it shed this skin
   };
 }
 
@@ -74,6 +85,7 @@ export function migrate(raw, now) {
       layout[k] = { x: clamp(at.x, -20, 20), z: clamp(at.z, -20, 20) };
     }
   }
+  const patterns = PATTERNS.filter((p) => p === 'faint' || (Array.isArray(raw.patterns) && raw.patterns.includes(p)));
   const s = raw.settings && typeof raw.settings === 'object' ? raw.settings : {};
   const shade = raw.shadeIndex;
   return {
@@ -84,6 +96,9 @@ export function migrate(raw, now) {
     lastSeen: isNum(raw.lastSeen) ? raw.lastSeen : now,
     sinceMoult: num(raw.sinceMoult, 0, Infinity, 0),
     shadeIndex: Number.isInteger(shade) && shade >= 0 && shade < SHADES.length ? shade : 0,
+    size: num(raw.size, 0.8, 1.2, 1), // saves from before growth are full-grown
+    patterns,
+    pattern: patterns.includes(raw.pattern) ? raw.pattern : 'faint',
     moults,
     mats,
     layout,

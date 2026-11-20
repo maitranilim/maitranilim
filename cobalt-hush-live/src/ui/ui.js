@@ -1,4 +1,4 @@
-import { SHADES } from '../core/state.js';
+import { PATTERNS, PATTERN_NAME, PATTERN_UNLOCK, SHADES } from '../core/state.js';
 import { tier } from '../sim/trust.js';
 import { lerp, clamp } from '../core/math.js';
 
@@ -49,7 +49,7 @@ export function showNotice(root, text) {
 
 // onFeedKey: Enter or Space on the armed Feed button (a keyboard click) drops food instead of
 // disarming; the UI disarms itself.
-export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMaterial, onMove, onPace, onSound } = {}) {
+export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMaterial, onMove, onPace, onSound, onPattern } = {}) {
   const settings = { lights: 'on', material: 'translucent', move: 'lure', pace: 'normal', sound: 'off', ...(state?.settings ?? {}) };
   let feedArmed = false;
   let night = 0;
@@ -90,12 +90,44 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
   head.append(closeBtn);
   const list = el('ul', { class: 'hush-list' });
   const empty = el('p', { class: 'hush-empty' }, 'No shells yet. Keep the deck calm and it will grow.');
-  panel.append(head, list, empty);
+  // Patterns: the ones unlocked can be worn; locked ones say how to find them.
+  const patternHead = el('h3', { class: 'hush-sub' }, 'Patterns');
+  const patternRow = el('div', { class: 'hush-patterns', role: 'group', 'aria-label': 'Abdomen pattern' });
+  const patternBtns = PATTERNS.map((p) => {
+    const b = el('button', { type: 'button', class: `hush-chip pat-${p}`, 'data-pattern': p });
+    b.addEventListener('click', () => {
+      if (b.disabled) return;
+      onPattern?.(p);
+      paintPatterns(unlocked, p);
+    });
+    patternRow.append(b);
+    return b;
+  });
+  let unlocked = ['faint'];
+  panel.append(head, patternHead, patternRow, list, empty);
+
+  // A small, quiet notice (a new pattern, a moult).
+  const toastEl = el('div', { class: 'hush-toast', role: 'status', 'aria-live': 'polite' });
+  let toastTimer = null;
 
   // Intro title.
   const intro = el('div', { class: 'hush-intro', 'aria-hidden': 'true' }, '<span>COBALT HUSH</span>');
 
-  root.append(ring, bar, panel, intro);
+  root.append(ring, bar, panel, intro, toastEl);
+
+  function paintPatterns(have, current) {
+    unlocked = have;
+    for (const b of patternBtns) {
+      const p = b.dataset.pattern;
+      const own = have.includes(p);
+      const at = PATTERN_UNLOCK[p];
+      b.disabled = !own;
+      b.textContent = own ? PATTERN_NAME[p] : '?';
+      b.setAttribute('aria-pressed', String(own && p === current));
+      b.title = own ? `Wear ${PATTERN_NAME[p]}` : at === 'rare' ? 'A rare find: keep moulting' : `Unlocks at moult ${at}`;
+      b.setAttribute('aria-label', b.title);
+    }
+  }
 
   function paintSettings() {
     lightsBtn.setAttribute('aria-pressed', String(settings.lights === 'on'));
@@ -146,6 +178,7 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
         const sw = el('span', { class: 'swatch', 'aria-hidden': 'true' });
         sw.style.background = `linear-gradient(145deg, ${shade.highlight}, ${shade.body} 55%, ${shade.deep})`;
         li.append(sw, el('span', { class: 'name' }, shade.name));
+        li.append(el('span', { class: 'size' }, `${Math.round((m.size ?? 1) * 100)}%`)); // how big it was
         const d = new Date(m.at);
         if (Number.isFinite(d.getTime())) li.append(el('time', { datetime: d.toISOString() }, dateFmt.format(d)));
         return li;
@@ -233,6 +266,15 @@ export function createUI(root, { state, onLights, onFeedArm, onFeedKey, onMateri
     setFeedArmed(b) {
       feedArmed = !!b;
       paintFeed();
+    },
+    setPatterns(have, current) {
+      paintPatterns(Array.isArray(have) ? have : ['faint'], current);
+    },
+    toast(text) {
+      toastEl.textContent = text;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3200);
     },
     setSettings(s) {
       Object.assign(settings, s);

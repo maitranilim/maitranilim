@@ -100,7 +100,7 @@ export function tickSim(sim, state, input, dtIn) {
   let moult = sim.moultT === null ? null : moultPhase(sim.moultT);
   let moulted = false;
   if (moult?.phase === 'done') {
-    s = completeMoult(s, castPose(body), input.epochMs);
+    s = completeMoult(s, castPose(body, s.size ?? 1), input.epochMs);
     sim.moultT = null;
     moult = null;
     moulted = true;

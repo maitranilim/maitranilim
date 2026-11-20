@@ -51,13 +51,16 @@ function ahead(gait, body, t) {
   return { x: body.x + body.vx * t, z: body.z + body.vz * t, heading: body.heading + gait.omega * t };
 }
 
-export function createGait(body) {
+// Growth: the gait stands and steps at the spider's size (rest feet, step threshold and lift scale).
+const restOf = (gait, leg) => (gait.size === 1 ? leg.rest : { x: leg.rest.x * gait.size, z: leg.rest.z * gait.size });
+
+export function createGait(body, size = 1) {
   const feet = {};
   for (const leg of LEGS) {
-    const p = localToWorld(body, leg.rest);
+    const p = localToWorld(body, { x: leg.rest.x * size, z: leg.rest.z * size });
     feet[leg.id] = { x: p.x, y: 0, z: p.z, planted: true, t: 0, from: { x: p.x, z: p.z }, to: { x: p.x, z: p.z } };
   }
-  return { feet, activeGroup: 0, heading: body.heading, omega: 0 };
+  return { feet, activeGroup: 0, heading: body.heading, omega: 0, size };
 }
 
 // Tetrapod gait. Planted feet never move. Groups alternate: a group steps only when every foot is
@@ -65,16 +68,19 @@ export function createGait(body) {
 // stance never strays more than a threshold), plus mates already TIDY-way off, so the four move
 // as one. The step time shortens with the feet's ground speed, which includes the pivot sweep.
 // Out of turn, only a foot EMERGENCY thresholds off may step, and only while fewer than 4 are up.
-export function stepGait(gait, body, dt, { stepThreshold = 0.32, stepTime = 0.14, lift = 0.16 } = {}) {
+export function stepGait(gait, body, dt, { stepThreshold: baseThreshold = 0.32, stepTime = 0.14, lift: baseLift = 0.16 } = {}) {
+  gait.size ??= 1;
+  const stepThreshold = baseThreshold * gait.size;
+  const lift = baseLift * gait.size;
   if (dt > 0) gait.omega = wrapAngle(body.heading - (gait.heading ?? body.heading)) / dt;
   gait.heading = body.heading;
-  const footSpeed = Math.hypot(body.vx, body.vz) + Math.abs(gait.omega) * REST_RADIUS;
+  const footSpeed = Math.hypot(body.vx, body.vz) + Math.abs(gait.omega) * REST_RADIUS * gait.size;
   const time = stepTime * clamp(1.2 / Math.max(footSpeed, 0.3), 0.45, 1.4);
   const landing = ahead(gait, body, LEAD * time);
   const later = ahead(gait, body, time);
   const off = (leg, at) => {
     const f = gait.feet[leg.id];
-    const r = localToWorld(at, leg.rest);
+    const r = localToWorld(at, restOf(gait, leg));
     return Math.hypot(f.x - r.x, f.z - r.z);
   };
   const startStep = (leg) => {
@@ -82,14 +88,14 @@ export function stepGait(gait, body, dt, { stepThreshold = 0.32, stepTime = 0.14
     f.planted = false;
     f.t = 0;
     f.from = { x: f.x, z: f.z };
-    f.to = localToWorld(landing, leg.rest);
+    f.to = localToWorld(landing, restOf(gait, leg));
   };
 
   // advance airborne feet
   for (const leg of LEGS) {
     const f = gait.feet[leg.id];
     if (f.planted) continue;
-    f.to = localToWorld(landing, leg.rest);
+    f.to = localToWorld(landing, restOf(gait, leg));
     f.t = Math.min(1, f.t + dt / time);
     f.x = f.from.x + (f.to.x - f.from.x) * f.t;
     f.z = f.from.z + (f.to.z - f.from.z) * f.t;

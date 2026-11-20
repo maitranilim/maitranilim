@@ -271,6 +271,8 @@ export function hushUniforms({ deep, body, highlight }) {
     hushRimAlpha: { value: 0 },
     hushLift: { value: 0 },
     hushInner: { value: new THREE.Color(0, 0, 0) },
+    hushPattern: { value: 0 }, // abdomen pattern index (PATTERNS order in core/state.js)
+    hushNight: { value: 0 },
   };
 }
 
@@ -290,7 +292,8 @@ varying vec3 vHushN;
 varying vec3 vHushLocal;
 uniform vec3 hushDeep, hushBody, hushHighlight, hushRimColor;
 uniform float hushRimStrength, hushRimPower, hushRimAlpha, hushLift;
-uniform vec3 hushInner;`)
+uniform vec3 hushInner;
+uniform float hushPattern, hushNight;`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
 #ifdef HUSH_GEM_CUT
 {
@@ -299,6 +302,7 @@ uniform vec3 hushInner;`)
 }
 #endif`)
       .replace('#include <color_fragment>', `#include <color_fragment>
+vec3 hushEmit = vec3(0.0); // pattern light at night (constellation stars, gilding)
 {
   // Body colour on the dorsal side shading to deep on the ventral side and at the silhouette.
   // The highlight colour is left to the speculars, sheen and rim.
@@ -306,17 +310,45 @@ uniform vec3 hushInner;`)
   float facing = saturate(abs(dot(normalize(vNormal), normalize(vViewPosition))));
   vec3 grad = mix(hushDeep, hushBody, smoothstep(-0.7, 0.6, up) * smoothstep(0.0, 0.55, facing));
 #ifdef HUSH_GEM_CUT
-  // Abdomen: four faint forward-pointing chevrons behind the gem, darker cobalt.
+  // Abdomen patterns (hushPattern): 0 faint chevrons, 1 bold chevrons, 2 constellation (pale gold
+  // dots that glow at night), 3 gilded rings and spine, 4 opal iridescence (rare).
   {
     vec3 q = vHushLocal;
-    float mark = 0.0;
-    for (int k = 0; k < 4; k++) {
-      float fk = float(k);
-      float d = abs(q.x - (${(GEM.x - GEM.r - 0.05).toFixed(3)} - 0.075 * fk - 0.55 * abs(q.z)));
-      float arm = 1.0 - smoothstep(0.05, 0.13 - 0.015 * fk, abs(q.z));
-      mark = max(mark, (1.0 - smoothstep(0.006, 0.014, d)) * arm);
+    float dorsal = smoothstep(0.05, 0.15, q.y);
+    float gemClear = smoothstep(${GEM.r.toFixed(4)} + 0.02, ${GEM.r.toFixed(4)} + 0.07, length(q.xz - vec2(${GEM.x.toFixed(4)}, ${GEM.z.toFixed(4)})));
+    if (hushPattern < 1.5) {
+      bool bold = hushPattern > 0.5;
+      float mark = 0.0;
+      for (int k = 0; k < 6; k++) {
+        if (!bold && k >= 4) break;
+        float fk = float(k);
+        float spacing = bold ? 0.085 : 0.075;
+        float d = abs(q.x - (${GEM.x.toFixed(4)} - ${GEM.r.toFixed(4)} - 0.05 - spacing * fk - 0.55 * abs(q.z)));
+        float arm = 1.0 - smoothstep(0.05, (bold ? 0.21 : 0.13) - (bold ? 0.012 : 0.015) * fk, abs(q.z));
+        mark = max(mark, (1.0 - smoothstep(bold ? 0.012 : 0.006, bold ? 0.026 : 0.014, d)) * arm);
+      }
+      grad = mix(grad, hushDeep * 0.5, mark * dorsal * (bold ? 0.85 : 0.5));
+    } else if (hushPattern < 2.5) {
+      vec2 cellPos = q.xz / 0.055;
+      vec2 cell = floor(cellPos);
+      float h = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+      vec2 o = vec2(fract(h * 17.0), fract(h * 31.0)) - 0.5;
+      float r = length(fract(cellPos) - 0.5 - o * 0.5);
+      float star = step(0.45, h) * (1.0 - smoothstep(0.07, 0.15, r)) * dorsal * gemClear;
+      grad = mix(grad, vec3(0.95, 0.87, 0.6), star * (1.0 - hushNight) * 0.9);
+      hushEmit += vec3(0.5, 1.0, 1.0) * star * hushNight * 1.3;
+    } else if (hushPattern < 3.5) {
+      float ring = 1.0 - smoothstep(0.006, 0.012, abs(fract((q.x - ${GEM.x.toFixed(4)}) * 7.0 + 0.5) - 0.5) / 7.0);
+      float spine = 1.0 - smoothstep(0.004, 0.009, abs(q.z));
+      float gild = max(ring, spine) * dorsal * gemClear;
+      grad = mix(grad, vec3(0.93, 0.74, 0.38), gild * 0.9);
+      hushEmit += vec3(1.0, 0.75, 0.35) * gild * hushNight * 0.3;
+    } else {
+      // A pearl, not a rainbow: a narrow blue-violet-teal hue band that shifts with the view.
+      vec3 iri = 0.55 + 0.45 * cos(6.2831 * (facing * 1.4 + q.x * 1.5 + vec3(0.0, 0.12, 0.25)));
+      grad = mix(grad, iri * mix(hushBody, vec3(1.0), 0.55), 0.38 * dorsal);
+      hushEmit += iri * 0.12 * hushNight * dorsal;
     }
-    grad = mix(grad, hushDeep * 0.5, mark * smoothstep(0.05, 0.15, q.y) * 0.5);
   }
 #endif
   // Lift: glass modes clear toward the highlight where the surface faces the viewer, keeping
@@ -328,6 +360,7 @@ uniform vec3 hushInner;`)
   outgoingLight += hushRimColor * hushFr * hushRimStrength;
   float hushFace = saturate(abs(dot(normal, normalize(vViewPosition))));
   outgoingLight += hushInner * hushFace * hushFace * hushFace; // lit from within (glass modes)
+  outgoingLight += hushEmit;
   diffuseColor.a = saturate(diffuseColor.a + hushFr * hushRimAlpha);
 }
 #include <opaque_fragment>`);

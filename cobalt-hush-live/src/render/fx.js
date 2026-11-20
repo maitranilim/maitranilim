@@ -320,6 +320,7 @@ export function createFx(stage) {
     for (const [id, s] of wanted) {
       if (shells.has(id)) continue;
       const mesh = createShellMesh(s.shadeIndex);
+      mesh.scale.multiplyScalar(s.size ?? 1); // each shell is the size the spider was when it shed it
       mesh.position.set(s.x, 0, s.z);
       mesh.rotation.y = -s.rot;
       mesh.userData.setNight(night);

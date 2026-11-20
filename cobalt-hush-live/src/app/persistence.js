@@ -8,7 +8,7 @@ export const BOOT_WAIT_MS = 1500;
 // What counts as a change worth saving: trust, moults, mats, settings, shade. (Satiety and the
 // clocks ride along with those saves and the flush on hide.)
 function saveKey(s) {
-  return JSON.stringify([s.trust, s.shadeIndex, s.moults.length, s.moults[0]?.id, s.mats, s.settings, s.layout]);
+  return JSON.stringify([s.trust, s.shadeIndex, s.moults.length, s.moults[0]?.id, s.mats, s.settings, s.layout, s.pattern]);
 }
 
 // Storage answered after play began: keep the saved spider and add what happened since `base`

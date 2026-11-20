@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { LEGS, HIP_HEIGHT, SPIDER_SCALE, solveTwoBone, createGait } from '../sim/gait.js';
-import { SHADES } from '../core/state.js';
+import { PATTERNS, SHADES } from '../core/state.js';
 import { clamp, damp, lerp } from '../core/math.js';
 import { contactShadow, contactShadowTexture } from './deckMesh.js';
 import {
@@ -411,6 +411,7 @@ export function createSpider(scene, { shade = 0 } = {}) {
   rig.root.add(blob);
 
   let mode = 'translucent';
+  let size = 1; // growth (SIZE in core/state.js): the rig scales and reads gait feet at this size
   let night = 0;
   let lastTime = null;
   let raise = 0;
@@ -437,6 +438,7 @@ export function createSpider(scene, { shade = 0 } = {}) {
       m.emissiveIntensity = lerp(0, 0.35, night);
       m.sheen = SHEEN[name] * lerp(1, 0.25, night);
       u.hushInner.value.copy(GLOW_COLOR).multiplyScalar(s.inner * lerp(0, 0.5, night)); // no inner light by day
+      u.hushNight.value = night;
     }
     rig.mats.spine.uniforms.intensity.value = 0.3;
     rig.mats.spine.uniforms.glow.value = night;
@@ -526,7 +528,7 @@ export function createSpider(scene, { shade = 0 } = {}) {
           const f = gait.feet[LEGS[i].id];
           const dx = f.x - body.x;
           const dz = f.z - body.z;
-          ground.set(c * dx + s * dz, f.y, -s * dx + c * dz).multiplyScalar(DESIGN);
+          ground.set(c * dx + s * dz, f.y, -s * dx + c * dz).multiplyScalar(DESIGN / size);
           const leg = LEGS[i];
           if (leg.index === 0) {
             ground.y += RAISE_LIFT * raise + 0.55 * stretchF;
@@ -608,6 +610,13 @@ export function createSpider(scene, { shade = 0 } = {}) {
     legCount: rig.legs.length,
     setMaterial,
     setShade,
+    setSize(g) {
+      size = clamp(Number.isFinite(g) ? g : 1, 0.5, 1.5);
+      rig.root.scale.setScalar(SPIDER_SCALE * size);
+    },
+    setPattern(name) {
+      rig.mats.parts.abdomen.uniforms.hushPattern.value = Math.max(0, PATTERNS.indexOf(name));
+    },
     setNight,
     pose,
   };
